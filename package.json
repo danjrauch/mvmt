@@ -1,0 +1,56 @@
+{
+  "name": "mvmt",
+  "version": "0.0.0",
+  "author": "Dan Rauch @danjrauch",
+  "bin": {
+    "mvmt": "./bin/run"
+  },
+  "bugs": "https://github.com/danjrauch/mvmt/issues",
+  "dependencies": {
+    "@oclif/command": "^1.5.14",
+    "@oclif/config": "^1.13.0",
+    "@oclif/plugin-help": "^2.2.0",
+    "bluebird": "^3.5.5",
+    "chalk": "^2.4.2",
+    "cli-ux": "^5.2.1",
+    "csv-parser": "^2.3.0",
+    "execa": "^1.0.0",
+    "fs-extra": "^8.0.1",
+    "immutable": "^4.0.0-rc.12",
+    "jsforce": "^1.9.1",
+    "json2csv": "^4.5.1"
+  },
+  "devDependencies": {
+    "@oclif/dev-cli": "^1.22.0",
+    "globby": "^8.0.2"
+  },
+  "engines": {
+    "node": ">=8.0.0"
+  },
+  "files": [
+    "/bin",
+    "/npm-shrinkwrap.json",
+    "/oclif.manifest.json",
+    "/src"
+  ],
+  "homepage": "https://github.com/danjrauch/mvmt",
+  "keywords": [
+    "oclif"
+  ],
+  "license": "MIT",
+  "main": "src/index.js",
+  "oclif": {
+    "commands": "./src/commands",
+    "bin": "mvmt",
+    "plugins": [
+      "@oclif/plugin-help"
+    ]
+  },
+  "repository": "danjrauch/mvmt",
+  "scripts": {
+    "postpack": "rm -f oclif.manifest.json",
+    "prepack": "oclif-dev manifest && oclif-dev readme",
+    "test": "echo NO TESTS",
+    "version": "oclif-dev readme && git add README.md"
+  }
+}
