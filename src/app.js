@@ -93,7 +93,7 @@ const launch_batch = (conn, job, specs) => {
 }
 
 // insert, update, upsert, delete
-const bulk = (object, alias, data, type, options) => {
+const bulk = (alias, object, data, type, options) => {
   if(type != 'insert' &&
      type != 'update' &&
     (type != 'upsert' || !options) &&
@@ -142,31 +142,62 @@ const bulk = (object, alias, data, type, options) => {
   }
 }
 
-const query = (query, alias, path) => {
+const create = async (alias, object, number) => {
   const conn = getConn(alias)
   if(!conn) return
 
-  if(path)
-    conn.bulk.query(query).on('error', (err) => { 
+  let inputs = []
+
+  for(let i = 0; i<(number ? number : 1000); ++i){
+    let objectJson = {}
+    const fieldString = await cli.prompt(`${object} #${i+1} `)
+    if(fieldString == 'done') break
+    fieldString.split(',').map(e => {
+      const quotedField = e.trim().split(':').map(e => e.trim())
+      objectJson[quotedField[0]] = quotedField[1]
+    })
+    inputs.push(objectJson)
+  }
+
+  conn.sobject(object).create(inputs, (err, rets) => {
+    if (err) { return console.error(err) }
+    rets.forEach(e => {
+      if(e.success){
+        console.log("Created record id : " + e.id)
+      }
+    })
+  })
+}
+
+const query = (alias, query, path) => {
+  const conn = getConn(alias)
+  if(!conn) return
+
+  if(path){
+    conn.bulk.query(query).on('error', (err) => {
       if(err.name == 'INVALID_SESSION_ID')
         return console.log(`Your access token is expired. Open the scratch org with 'sfdx force:org:open -u ${alias}'`)
       else
         return console.error(err)
     }).stream().pipe(fs.createWriteStream(path))
-  else
-    conn.bulk.query(query)
-    .on('record', (rec) => { console.log(rec) })
-    .on('error', (err) => { 
+  }else{
+    conn.query(query)
+    .on('record', (rec) => { 
+      delete rec.attributes 
+      console.log(rec) 
+    })
+    .on('error', (err) => {
       if(err.name == 'INVALID_SESSION_ID')
         return console.log(`Your access token is expired. Open the scratch org with 'sfdx force:org:open -u ${alias}'`)
       else
         return console.error(err)
     })
+  }
 
   // let rows = []
   // conn.bulk.query(query)
   //   .on('record', (rec) => { rows.push(rec) })
-  //   .on('error', (err) => { 
+  //   .on('error', (err) => {
   //     if(err.name == 'INVALID_SESSION_ID'){
   //       return console.log(`Your access token is expired. Open the scratch org with 'sfdx force:org:open -u ${alias}'`)
   //     }else
@@ -185,45 +216,69 @@ const query = (query, alias, path) => {
   //   })
 }
 
-// hyprid find-and-delete using crud then bulk after threshold, will delete a batch of 10000 at a time
-const bulk_query_delete = (object, alias, criteria) => {
+const tether = async (alias, object, query, type) => {
   const conn = getConn(alias)
   if(!conn) return
 
-  cli.action.start('querying and deleting')
+  if(type == 'delete'){
+    cli.action.start('querying and deleting')
 
-  conn.sobject(object)
-      .find(criteria)
-      .destroy({
-        allowBulk: true,
-        bulkThreshold: 200,
-      }, (err, rets) => {
-        if(err){
-          if(err.name == 'INVALID_SESSION_ID')
-            return console.log(`Your access token is expired. Open the scratch org with 'sfdx force:org:open -u ${alias}'`)
-          else
-            return console.error(err)
-        }
-        console.log(`${rets.filter(ret => ret.success).length} records deleted, ${rets.filter(ret => !ret.success).length} errors`)
-        rets.filter(ret => !ret.success).forEach(ret => console.log(`${chalk.red('Error:')} ${ret.errors.join(', ')}`))
-        conn.sobject(object)
-            .find(criteria)
-            .execute({autoFetch: true, maxFetch: 10000}, (err, records) => {
-              if(err){
-                if(err.name == 'INVALID_SESSION_ID')
-                  return console.log(`Your access token is expired. Open the scratch org with 'sfdx force:org:open -u ${alias}'`)
-                else
-                  return console.error(err)
-              }
-              console.log(`deleting ${records.length} records`)
-              //TODO: write result to a file
-              if(records.length > 0)
-                bulk_query_delete(object, alias, criteria)
-            })
-      })
+    conn.query(query)
+        .destroy(object, {
+          allowBulk: true,
+          bulkThreshold: 200,
+        }, (err, rets) => {
+          if(err){
+            if(err.name == 'INVALID_SESSION_ID')
+              return console.log(`Your access token is expired. Open the scratch org with 'sfdx force:org:open -u ${alias}'`)
+            else
+              return console.error(err)
+          }
+          cli.action.stop('done')
+          console.log(`${rets.filter(ret => ret.success).length} records deleted, ${rets.filter(ret => !ret.success).length} errors`)
+          rets.filter(ret => !ret.success).forEach(ret => console.log(`${chalk.red('Error:')} ${ret.errors.join(', ')}`))
+          conn.query(query)
+              .execute({autoFetch: true, maxFetch: 50}, async (err, records) => {
+                if(err){
+                  if(err.name == 'INVALID_SESSION_ID')
+                    return console.log(`Your access token is expired. Open the scratch org with 'sfdx force:org:open -u ${alias}'`)
+                  else
+                    return console.error(err)
+                }
+                if(records.length > 0){
+                  const cont = await cli.confirm('continue deleting? [yes/no]')
+                  if(cont)
+                    tether(alias, object, query, type)
+                }
+              })
+        })
+  }else if(type == 'update'){
+    let objectJson = {}
+    const fieldString = await cli.prompt(`Update Field Map `)
+    fieldString.split(',').map(e => {
+      const quotedField = e.trim().split(':').map(e => e.trim())
+      objectJson[quotedField[0]] = quotedField[1]
+    })
+
+    cli.action.start('querying and updating')
+
+    conn.query(query)
+        .update(objectJson, object, (err, rets) => {
+          if (err) { return console.error(err) }
+          if(err){
+            if(err.name == 'INVALID_SESSION_ID')
+              return console.log(`Your access token is expired. Open the scratch org with 'sfdx force:org:open -u ${alias}'`)
+            else
+              return console.error(err)
+          }
+          cli.action.stop('done')
+          console.log(`${rets.filter(ret => ret.success).length} records updated, ${rets.filter(ret => !ret.success).length} errors`)
+          rets.filter(ret => !ret.success).forEach(ret => console.log(`${chalk.red('Error:')} ${ret.errors.join(', ')}`))
+        })
+  }
 }
 
-module.exports = { bulk, query }
+module.exports = { bulk, query, create, tether }
 
 // bulk_query_delete('Contact', 'test_scratch', {  })
 // bulk('Contact', 'test_scratch', './data/MOCK_DATA.csv', 'insert')

@@ -10,8 +10,8 @@ class BulkCommand extends Command {
       else if(flags.update) type = 'update'
       else if(flags.upsert) type = 'upsert'
       else if(flags.delete) type = 'delete'
-      if(flags.upsert) app.bulk(flags.object, flags.alias, flags.path, type, {extIdField: flags.extIdField})
-      else app.bulk(flags.object, flags.alias, flags.path, type)
+      if(flags.upsert) app.bulk(flags.alias, flags.object, flags.path, type, {extIdField: flags.extIdField})
+      else app.bulk(flags.alias, flags.object, flags.path, type)
     }
     else
       console.log('Choose one type of operation')
@@ -20,7 +20,8 @@ class BulkCommand extends Command {
 
 BulkCommand.aliases = ['b']
 
-BulkCommand.description = `bulk migrate data to some environment`
+BulkCommand.description = `bulk migrate data
+bulk create, update, or delete`
 
 BulkCommand.examples = [
   '$ mvmt bulk -a some_org_alias -o Contact -p ../../folder/csv --insert'

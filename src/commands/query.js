@@ -5,15 +5,16 @@ class QueryCommand extends Command {
   async run() {
     const {flags} = this.parse(QueryCommand)
     if(flags.path)
-      app.query(flags.query, flags.alias, flags.path)
+      app.query(flags.alias, flags.query, flags.path)
     else
-      app.query(flags.query, flags.alias)
+      app.query(flags.alias, flags.query)
   }
 }
 
 QueryCommand.aliases = ['q']
 
-QueryCommand.description = `query data from some environment`
+QueryCommand.description = `query data
+query using soql statement`
 
 QueryCommand.examples = [
   '$ mvmt query -q "SELECT ID, Name FROM Contact" -a some_org_alias -p ../../folder'
