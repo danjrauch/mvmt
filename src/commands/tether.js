@@ -18,7 +18,7 @@ input each field map in the form <fieldname : value, fieldname : value, ...> wit
 USE THIS COMMAND SPARINGLY`
 
 TetherCommand.examples = [
-  '$ mvmt tether -a some_name -o Contact --delete'
+  '$ mvmt tether -a some_name -q some_query -o Contact --delete'
 ]
 
 TetherCommand.flags = {
