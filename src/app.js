@@ -1,7 +1,8 @@
 const jsforce = require('jsforce')
-const execa = require('execa')
+const shell = require('shelljs')
 const {cli} = require('cli-ux')
 const chalk = require('chalk')
+const columnify = require('columnify')
 const fs = require('fs-extra')
 const csv = require('csv-parser')
 const { parse } = require('json2csv')
@@ -15,7 +16,7 @@ let jobInfo = {
 }
 
 const getConn = (alias) => {
-  const info = execa.shellSync(`sfdx force:org:display -u ${alias} --json`)
+  const info = shell.exec(`sfdx force:org:display -u ${alias} --json`, {silent:true})
   const infoJson = JSON.parse(info.stdout)
 
   const accessToken = infoJson.result.accessToken
@@ -181,39 +182,12 @@ const query = (alias, query, path) => {
         return console.error(err)
     }).stream().pipe(fs.createWriteStream(path))
   }else{
-    conn.query(query)
-    .on('record', (rec) => { 
-      delete rec.attributes 
-      console.log(rec) 
-    })
-    .on('error', (err) => {
-      if(err.name == 'INVALID_SESSION_ID')
-        return console.log(`Your access token is expired. Open the scratch org with 'sfdx force:org:open -u ${alias}'`)
-      else
-        return console.error(err)
-    })
+    const result = shell.exec(`sfdx force:data:soql:query -u ${alias} -q "${query}"`, {silent:true})
+    if(result.stdout)
+      process.stdout.write(result.stdout)
+    else
+      process.stdout.write(result.stderr)
   }
-
-  // let rows = []
-  // conn.bulk.query(query)
-  //   .on('record', (rec) => { rows.push(rec) })
-  //   .on('error', (err) => {
-  //     if(err.name == 'INVALID_SESSION_ID'){
-  //       return console.log(`Your access token is expired. Open the scratch org with 'sfdx force:org:open -u ${alias}'`)
-  //     }else
-  //       return console.error(err)
-  //   })
-  //   .on('end', () => {
-  //     if(path){
-  //       const dataCsv = parse(rows, { header: true, fields: Object.keys(rows[0]), quote: '"' })
-  //       fs.writeFile(path, dataCsv, (err) => {
-  //         if(err) throw err
-  //         console.log('The file has been saved!')
-  //       })
-  //     }else{
-  //       rows.forEach(r => console.log(r))
-  //     }
-  //   })
 }
 
 const tether = async (alias, object, query, type) => {
@@ -278,7 +252,75 @@ const tether = async (alias, object, query, type) => {
   }
 }
 
-module.exports = { bulk, query, create, tether }
+const schema = (alias, type) => {
+  const conn = getConn(alias)
+  if(!conn) return
+
+  if(type){
+    const result = shell.exec(`sfdx force:schema:sobject:list -u ${alias} -c ${type}`, {silent:true})
+    if(result.stdout)
+      process.stdout.write(result.stdout)
+    else
+      process.stdout.write(result.stderr)
+  }else{
+    const result = shell.exec(`sfdx force:schema:sobject:list -u ${alias} -c all`, {silent:true})
+    if(result.stdout)
+      process.stdout.write(result.stdout)
+    else
+      process.stdout.write(result.stderr)
+  }
+}
+
+const describe = (alias, object, type) => {
+  const conn = getConn(alias)
+  if(!conn) return
+
+  const result = shell.exec(`sfdx force:schema:sobject:describe -u ${alias} -s ${object} --json`, {silent:true})
+  if(result.stdout){
+    const describe = JSON.parse(result.stdout)
+    if(type == 'children'){
+      const childrenDescribe = describe.result.childRelationships.map(d => { return {OBJECT: d.childSObject ? d.childSObject : '', 
+                                                                                     FIELD: d.field ? d.field : '',
+                                                                                     RELNAME: d.relationshipName ? d.relationshipName : ''} })
+      const longestObject = childrenDescribe.reduce((a, b) => { return a.OBJECT.length > b.OBJECT.length ? a : b }).OBJECT.length
+      const longestField = childrenDescribe.reduce((a, b) => { return a.FIELD.length > b.FIELD.length ? a : b }).FIELD.length
+      const longestRelName = childrenDescribe.reduce((a, b) => { return a.RELNAME.length > b.RELNAME.length ? a : b }).RELNAME.length
+      childrenDescribe.unshift({
+        OBJECT: '─'.repeat(longestObject > 6 ? longestObject : 6),
+        FIELD: '─'.repeat(longestField > 5 ? longestField : 5),
+        RELNAME: '─'.repeat(longestRelName > 7 ? longestRelName : 7)
+      })
+      console.log(columnify(childrenDescribe))
+    }else if(type == 'fields'){
+      const fieldsDescribe = describe.result.fields.map(d => { return {NAME: d.name ? d.name : '', 
+                                                                       TYPE: d.type ? d.type : ''} })
+      const longestName = fieldsDescribe.reduce((a, b) => { return a.NAME.length > b.NAME.length ? a : b }).NAME.length
+      const longestType = fieldsDescribe.reduce((a, b) => { return a.TYPE.length > b.TYPE.length ? a : b }).TYPE.length
+      fieldsDescribe.unshift({
+        NAME: '─'.repeat(longestName > 6 ? longestName : 6),
+        TYPE: '─'.repeat(longestType > 5 ? longestType : 5),
+      })
+      console.log(columnify(fieldsDescribe))
+    }else{
+      const fieldDescribe = describe.result.fields.filter(d => d.name.toLowerCase() == type.toLowerCase())[0]
+      if(fieldDescribe){
+        console.log(columnify([{
+          NAME: '─'.repeat(fieldDescribe.name.length > 4 ? fieldDescribe.name.length : 4),
+          TYPE: '─'.repeat(fieldDescribe.type.length > 4 ? fieldDescribe.type.length : 4)
+        },{
+          NAME: fieldDescribe.name,
+          TYPE: fieldDescribe.type
+        }]))
+      }else{
+        console.log(`${chalk.red(type)} does not exist on this object.`)
+      }
+    }
+  }
+  else
+    process.stdout.write(result.stderr)
+}
+
+module.exports = { bulk, query, create, tether, schema, describe }
 
 // bulk_query_delete('Contact', 'test_scratch', {  })
 // bulk('Contact', 'test_scratch', './data/MOCK_DATA.csv', 'insert')

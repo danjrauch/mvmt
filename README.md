@@ -30,8 +30,10 @@ USAGE
 <!-- commands -->
 * [`mvmt bulk`](#mvmt-bulk)
 * [`mvmt create`](#mvmt-create)
+* [`mvmt describe`](#mvmt-describe)
 * [`mvmt help [COMMAND]`](#mvmt-help-command)
 * [`mvmt query`](#mvmt-query)
+* [`mvmt schema`](#mvmt-schema)
 * [`mvmt tether`](#mvmt-tether)
 
 ## `mvmt bulk`
@@ -90,6 +92,30 @@ EXAMPLE
 
 _See code: [src/commands/create.js](https://github.com/danjrauch/mvmt/blob/v0.0.0/src/commands/create.js)_
 
+## `mvmt describe`
+
+describe metadata for an object
+
+```
+USAGE
+  $ mvmt describe
+
+OPTIONS
+  -a, --alias=alias    (required)
+  -f, --field=field
+  -o, --object=object  (required)
+  --children
+  --fields
+
+ALIASES
+  $ mvmt d
+
+EXAMPLE
+  $ mvmt describe -a some_name -o Contact
+```
+
+_See code: [src/commands/describe.js](https://github.com/danjrauch/mvmt/blob/v0.0.0/src/commands/describe.js)_
+
 ## `mvmt help [COMMAND]`
 
 display help for mvmt
@@ -132,6 +158,27 @@ EXAMPLE
 
 _See code: [src/commands/query.js](https://github.com/danjrauch/mvmt/blob/v0.0.0/src/commands/query.js)_
 
+## `mvmt schema`
+
+list schema metadatadata by type
+
+```
+USAGE
+  $ mvmt schema
+
+OPTIONS
+  -a, --alias=alias               (required)
+  -t, --type=all|custom|standard
+
+ALIASES
+  $ mvmt s
+
+EXAMPLE
+  $ mvmt schema -a some_name -t all
+```
+
+_See code: [src/commands/schema.js](https://github.com/danjrauch/mvmt/blob/v0.0.0/src/commands/schema.js)_
+
 ## `mvmt tether`
 
 query and modify data
@@ -155,7 +202,7 @@ ALIASES
   $ mvmt t
 
 EXAMPLE
-  $ mvmt tether -a some_name -o Contact --delete
+  $ mvmt tether -a some_name -q some_query -o Contact --delete
 ```
 
 _See code: [src/commands/tether.js](https://github.com/danjrauch/mvmt/blob/v0.0.0/src/commands/tether.js)_
