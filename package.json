@@ -15,7 +15,7 @@
     "cli-ux": "^5.2.1",
     "csv-parser": "^2.3.0",
     "columnify": "^1.5.4",
-    "shelljs": "^0.8.3",
+    "shelljs": "^0.8.5",
     "execa": "^2.0.3",
     "fs-extra": "^8.0.1",
     "immutable": "^4.0.0-rc.12",
